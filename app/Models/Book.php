@@ -20,14 +20,48 @@ class Book extends Model
         return $query->where('title', 'LIKE', '%'. $title . '%');
     }
 
-    public function scopePopular(Builder $query): Builder
+    public function scopeWithAvgRating(Builder $query, $from = null, $to = null): Builder
     {
-        return $query->withCount('reviews')
+        return $query->withAvg([
+            'reviews' => fn(Builder $q) => $this->dateRangeFilter($q, $from, $to)
+        ], 'rating');
+    }
+
+    public function scopeWithReviewCount(Builder $query, $from = null, $to = null)
+    {
+        return $query->withCount([
+                'reviews' => fn(Builder $q) => $this->dateRangeFilter($q, $from, $to)
+        ]);
+    }
+
+    public function scopePopular(Builder $query, $from = null, $to = null): Builder
+    {
+        return $query->withCount([
+                'reviews' => fn(Builder $q) => $this->dateRangeFilter($q, $from, $to)
+            ])
             ->orderBy('reviews_count', 'desc');
     }
 
-    public function scopeHighestRated(Builder $query): Builder
+    public function scopeHighestRated(Builder $query, $from = null, $to = null): Builder
     {
-        return $query->withAvg('reviews', 'rating')->orderBy('reviews_avg_rating', 'desc');
+        return $query->withAvg([
+            'reviews' => fn(Builder $q) => $this->dateRangeFilter($q, $from, $to)
+        ], 'rating')->orderBy('reviews_avg_rating', 'desc');
+    }
+    
+    public function scopeMinReviews(Builder $query, int $minReviews): Builder
+    {
+        return $query->where('reviews_count', '>=', $minReviews);
+    }
+
+    private function dateRangeFilter(Builder $query, $from, $to) 
+    {
+        if ($from && !$to) {
+            $query->where('created_at', '>=', $from);
+        } elseif (!$from && $to) {
+            $query->where('created_at', '<=', $to);
+        } elseif ($from && $to) {
+            $query->whereBetween('created_at', [$from, $to]);
+        }
     }
 }
